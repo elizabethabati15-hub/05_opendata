@@ -26,7 +26,8 @@ library(tidyverse)
 ```
 
 ```{r}
-fieldweather 
+fieldweather <- read_csv("../data/fieldweatherdata.csv")
+
 
 fieldweather
 ```
@@ -37,12 +38,20 @@ Our data set contains **254,770** rows comprised by **698** site-years and **365
 ```{r}
 summary(fieldweather)
 ```
+Across the 24 hour, tmax_deg_c and tmin_deg_c was the maximum and minimum
+
 
 Let's create some density plots to explore the weather data distributions.  
 ```{r}
-
+fieldweather%>%
+  pivot_longer(cols = dayl_s:vp_pa) %>%
+  ggplot(aes (x = value)) +
+  geom_density() +
+  facet_wrap(~name, scales = "free")
 
 ```
+pcp_mm_day and swe_kg_m_2has no pattern because the values are mostly 0 that is it's most likely not raining
+
 
 # Feature engineering  
 Let's take another look at the data at hand:
@@ -56,7 +65,8 @@ Although this level of temporal resolution is great, plant outputs like yield or
 
 Rather, plants respond to the cumulative effects of weather across many days. 
 
-How could we use this understanding to create new features from the current ones?    
+How could we use this understanding to create new features from the current ones? 
+Think of features as a new variable
 
 ## Quiz - go to eLC  
 
@@ -111,24 +121,44 @@ fe_month <- fieldweather %>%
                 tmax.c = tmax_deg_c, 
                 tmin.c = tmin_deg_c,
                 vp.pa = vp_pa
-                ) 
-  # Creating a date class variable  
+                ) %>%
+  # Creating a date class variable 
+  mutate(date_chr = paste0(year, "/", yday))%>%
+  mutate(date = as.Date(date_chr, "%Y/%j")) %>%
 
-  # Extracting month from date  
-
+  # Extracting month from date 
+  mutate(month = month(date)) %>%
+  mutate (month_abb = month(date, label = T))
 
 fe_month
 ```
+you could also do this by week using mutate(month = week(date))
 
 Now, let's summarize daily weather variables based on month.  
 ```{r fe_month_sum}
-fe_month_sum 
+fe_month_sum <- fe_month %>%
+  group_by(year, site, month_abb, strength_gtex) %>%
+  summarise(across(.cols = c(dayl.s,
+                              srad.wm2,
+                              tmax.c,
+                              tmin.c,
+                              vp.pa),
+                    .fns = mean,
+                   .names = "mean_{.col}"
+                    ),
+            across(.cols = prcp.mm,
+                   .fns = sum,
+                   .names = "sum_{.col}")
+            ) %>%
+  ungroup()
 
 
 fe_month_sum
 ```
 
 8,376 rows because 698 site-years x 12 months.  
+
+Always watch out the number of your rows to see if it makes sense and what is expected
 
 Let's check tmax.c and prcp.mm for the first site-year and month.  
 
